@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: search-query-service
+
+server:
+  port: 8083
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+app:
+  search:
+    elasticsearch-url: ${ELASTICSEARCH_URL:http://localhost:9200}
+    log-index-pattern: logs-*
+    default-page-size: 50
+    max-page-size: 200

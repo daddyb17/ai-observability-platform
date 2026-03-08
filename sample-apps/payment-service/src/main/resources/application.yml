@@ -1,0 +1,22 @@
+spring:
+  application:
+    name: payment-service
+
+server:
+  port: 8092
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+app:
+  simulation:
+    latency-ms: ${PAYMENT_SIMULATION_LATENCY_MS:2500}

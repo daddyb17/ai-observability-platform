@@ -1,0 +1,28 @@
+spring:
+  application:
+    name: api-gateway
+
+server:
+  port: 8080
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+app:
+  gateway:
+    security:
+      jwt-secret-base64: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+    routes:
+      auth-service-url: ${AUTH_SERVICE_URL:http://localhost:8081}
+      incident-service-url: ${INCIDENT_SERVICE_URL:http://localhost:8084}
+      search-service-url: ${SEARCH_SERVICE_URL:http://localhost:8083}
+      metrics-service-url: ${METRICS_SERVICE_URL:http://localhost:8087}
+      trace-service-url: ${TRACE_SERVICE_URL:http://localhost:8088}
+      notification-service-url: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
+    rate-limit:
+      login-per-minute: 15
+      search-per-minute: 60
+      analyze-per-minute: 20

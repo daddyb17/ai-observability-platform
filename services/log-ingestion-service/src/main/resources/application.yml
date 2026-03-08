@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: log-ingestion-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+      acks: all
+
+server:
+  port: 8082
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+app:
+  log-ingestion:
+    topic: logs.raw
+    dead-letter-topic: deadletter.logs
+    kafka-max-attempts: 3
+    kafka-send-timeout-seconds: 5
+    elasticsearch-url: ${ELASTICSEARCH_URL:http://localhost:9200}
+    index-prefix: logs
+    elasticsearch-max-attempts: 3
+    elasticsearch-backoff-ms: 250

@@ -1,0 +1,32 @@
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+  - job_name: 'platform-services'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - 'api-gateway:8080'
+          - 'auth-service:8081'
+          - 'log-ingestion-service:8082'
+          - 'search-query-service:8083'
+          - 'incident-detection-service:8084'
+          - 'ai-analysis-service:8085'
+          - 'notification-service:8086'
+          - 'metrics-ingestion-service:8087'
+          - 'trace-ingestion-service:8088'
+          - 'order-service:8091'
+          - 'payment-service:8092'
+          - 'notification-sample-service:8093'
+  - job_name: 'local-host-services'
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets:
+          - 'host.docker.internal:8087'
+          - 'host.docker.internal:8088'
+          - 'host.docker.internal:8091'
+          - 'host.docker.internal:8092'
+          - 'host.docker.internal:8093'

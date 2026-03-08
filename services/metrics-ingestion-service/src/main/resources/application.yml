@@ -1,0 +1,41 @@
+spring:
+  application:
+    name: metrics-ingestion-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+      acks: all
+
+server:
+  port: 8087
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+
+app:
+  metrics-ingestion:
+    prometheus-url: ${PROMETHEUS_URL:http://localhost:9090}
+    topic: metrics.raw
+    dead-letter-topic: deadletter.metrics
+    kafka-send-timeout-seconds: 5
+    evaluation-window: 5m
+    evaluate-fixed-delay-ms: 30000
+    default-incident-signals-size: 50
+    services:
+      - service-name: order-service
+        instance-regex: .*:8091
+      - service-name: payment-service
+        instance-regex: .*:8092
+      - service-name: notification-sample-service
+        instance-regex: .*:8093
+    rules:
+      error-rate-threshold: 0.10
+      latency-p95-threshold-ms: 2000
+      jvm-heap-threshold: 0.85
+      db-connections-threshold: 0.90

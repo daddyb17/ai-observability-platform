@@ -1,0 +1,23 @@
+spring:
+  application:
+    name: order-service
+
+server:
+  port: 8091
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  tracing:
+    sampling:
+      probability: 1.0
+  otlp:
+    tracing:
+      endpoint: ${OTEL_EXPORTER_OTLP_ENDPOINT:http://localhost:4318/v1/traces}
+
+app:
+  downstream:
+    payment-base-url: ${PAYMENT_SERVICE_BASE_URL:http://localhost:8092}
+    notification-base-url: ${NOTIFICATION_SAMPLE_BASE_URL:http://localhost:8093}
