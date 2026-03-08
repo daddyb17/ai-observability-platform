@@ -1,0 +1,33 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Validate Maven Wrapper
+        uses: apache/maven-wrapper-validator-action@v3
+
+      - name: Unit and Integration Tests
+        run: ./mvnw -B -ntp test
+
+      - name: Build Artifacts
+        run: ./mvnw -B -ntp package -DskipTests

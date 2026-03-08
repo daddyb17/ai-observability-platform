@@ -1,6 +1,22 @@
 spring:
   application:
     name: ai-analysis-service
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/aiobs}
+    username: ${POSTGRES_USER:aiobs}
+    password: ${POSTGRES_PASSWORD:aiobs}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: ai-analysis-service
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+      acks: all
 
 server:
   port: 8085
@@ -10,3 +26,22 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+
+app:
+  ai:
+    provider: ${AI_PROVIDER:mock}
+    timeout-seconds: ${AI_TIMEOUT_SECONDS:20}
+    max-retries: ${AI_MAX_RETRIES:2}
+    kafka:
+      topic-analysis-request: ai.analysis.request
+      topic-analysis-result: ai.analysis.result
+      dead-letter-topic: deadletter.ai
+      send-timeout-seconds: 5
+      consumer-group-id: ai-analysis-service
+    openai:
+      model: ${OPENAI_MODEL:gpt-4o-mini}
+      api-key: ${OPENAI_API_KEY:}
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    ollama:
+      model: ${OLLAMA_MODEL:llama3}
+      base-url: ${OLLAMA_BASE_URL:http://localhost:11434}

@@ -43,6 +43,7 @@ This repository demonstrates production-style Java microservices, event-driven d
 1. Start infrastructure:
    - Bash: `./scripts/start-local.sh`
    - PowerShell: `powershell -ExecutionPolicy Bypass -File .\\scripts\\start-local.ps1`
+   - Optional Postgres host port override: set `POSTGRES_PORT` (example: `POSTGRES_PORT=55432`)
 2. Build all modules:
    - `./mvnw clean verify` (Windows: `mvnw.cmd clean verify`)
 3. Start services as needed:
@@ -63,11 +64,12 @@ This repository demonstrates production-style Java microservices, event-driven d
 ## Demo Walkthrough
 
 1. Bring up the stack.
-2. Trigger payment timeout simulation.
-3. Generate order traffic.
+2. Seed baseline data (`scripts/seed-demo-data.sh` or `scripts/seed-demo-data.ps1`).
+3. Trigger payment timeout simulation (`scripts/simulate-payment-outage.sh` or `scripts/simulate-payment-outage.ps1`).
 4. Observe logs, metrics, and traces.
 5. Review generated incidents and AI analysis.
 6. Confirm outbound alert delivery.
+7. Simulate latency spikes (`scripts/simulate-latency-spike.sh` or `scripts/simulate-latency-spike.ps1`).
 
 ## Sample API Calls
 
@@ -79,7 +81,20 @@ This repository demonstrates production-style Java microservices, event-driven d
 ## Testing
 
 - Unit tests focus on rule logic, severity calculation, and payload builders.
-- Integration tests target Kafka/PostgreSQL/Elasticsearch/Redis flows (Testcontainers planned).
+- Integration tests include Testcontainers-based checks for:
+  - shared infrastructure container bootstrapping (`common-test`)
+  - notification persistence lifecycle with PostgreSQL (`notification-service`)
+  - optional heavier container checks can be enabled with:
+    - `RUN_KAFKA_TESTCONTAINER=true`
+    - `RUN_REDIS_TESTCONTAINER=true`
+    - `RUN_ELASTIC_TESTCONTAINER=true`
+
+## CI/CD
+
+- GitHub Actions workflow: `.github/workflows/ci.yml`
+- Runs on pushes/PRs, using Java 21 and Maven cache:
+  - `./mvnw -B -ntp test`
+  - `./mvnw -B -ntp package -DskipTests`
 
 ## Future Improvements
 

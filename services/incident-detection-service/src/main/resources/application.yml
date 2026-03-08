@@ -1,6 +1,22 @@
 spring:
   application:
     name: incident-detection-service
+  datasource:
+    url: ${POSTGRES_URL:jdbc:postgresql://localhost:5432/aiobs}
+    username: ${POSTGRES_USER:aiobs}
+    password: ${POSTGRES_PASSWORD:aiobs}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: incident-detection-service
+      auto-offset-reset: latest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      retries: 3
+      acks: all
 
 server:
   port: 8084
@@ -10,3 +26,18 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+
+app:
+  incident:
+    rules:
+      correlation-window-minutes: 10
+      error-burst-threshold: 20
+      error-burst-window-minutes: 5
+      trace-failure-threshold: 3
+      trace-failure-window-minutes: 5
+    kafka:
+      topic-incidents-detected: incidents.detected
+      topic-incidents-updated: incidents.updated
+      topic-ai-analysis-request: ai.analysis.request
+      topic-alerts-outbound: alerts.outbound
+      send-timeout-seconds: 5
