@@ -60,7 +60,7 @@ Detailed architecture docs:
 
 ## Phase 2 Infrastructure Endpoints
 
-- PostgreSQL: `localhost:5432`
+- PostgreSQL: `localhost:55432` (default; override with `POSTGRES_PORT`)
 - Kafka: `localhost:9092`
 - Redis: `localhost:6379`
 - Elasticsearch: `http://localhost:9200`
@@ -117,6 +117,14 @@ Detailed architecture docs:
 - Screenshot assets: `docs/screenshots/README.md`
 - Demo capture runbook: `docs/runbooks/demo-capture-runbook.md`
 - Post-MVP checklist: `docs/runbooks/next-steps-checklist.md`
+- Provider switch runbook: `docs/runbooks/provider-switch-demo.md`
+- Outage E2E runbook: `docs/runbooks/outage-e2e-test.md`
+
+## Kubernetes Starter
+
+- Kubernetes manifests: `k8s/`
+- Apply base:
+  - `kubectl apply -k k8s/base`
 
 ## Future Improvements
 

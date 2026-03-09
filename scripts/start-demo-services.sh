@@ -22,7 +22,7 @@ detect_postgres_port() {
     return
   fi
 
-  echo "5432"
+  echo "55432"
 }
 
 POSTGRES_PORT_RESOLVED="$(detect_postgres_port)"

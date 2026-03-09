@@ -28,7 +28,7 @@ if (-not $postgresPort) {
     }
 }
 if (-not $postgresPort) {
-    $postgresPort = "5432"
+    $postgresPort = "55432"
 }
 
 if (-not $env:POSTGRES_URL) {

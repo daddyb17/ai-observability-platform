@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: platform-config
+  namespace: ai-observability
+data:
+  POSTGRES_URL: jdbc:postgresql://postgres.ai-observability.svc.cluster.local:5432/aiobs
+  POSTGRES_USER: aiobs
+  POSTGRES_PASSWORD: aiobs
+  KAFKA_BOOTSTRAP_SERVERS: kafka.ai-observability.svc.cluster.local:9092
+  ELASTICSEARCH_URL: http://elasticsearch.ai-observability.svc.cluster.local:9200
+  AI_PROVIDER: mock

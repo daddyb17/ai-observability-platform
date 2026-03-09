@@ -4,12 +4,13 @@ import com.aiobservability.services.notificationservice.model.AlertNotificationR
 import com.aiobservability.services.notificationservice.model.AlertStatus;
 import com.aiobservability.services.notificationservice.repository.AlertNotificationRepository;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Map;
 import java.util.UUID;
@@ -17,7 +18,9 @@ import java.util.UUID;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 
+@Testcontainers(disabledWithoutDocker = true)
 class AlertNotificationRepositoryIntegrationTest {
+    @Container
     private static final PostgreSQLContainer<?> POSTGRES =
             new PostgreSQLContainer<>("postgres:16")
                     .withDatabaseName("aiobs")
@@ -29,7 +32,6 @@ class AlertNotificationRepositoryIntegrationTest {
 
     @BeforeAll
     static void setup() {
-        POSTGRES.start();
         DriverManagerDataSource dataSource = new DriverManagerDataSource();
         dataSource.setDriverClassName("org.postgresql.Driver");
         dataSource.setUrl(POSTGRES.getJdbcUrl());
@@ -52,11 +54,6 @@ class AlertNotificationRepositoryIntegrationTest {
                     error_message text
                 )
                 """);
-    }
-
-    @AfterAll
-    static void cleanup() {
-        POSTGRES.stop();
     }
 
     @Test

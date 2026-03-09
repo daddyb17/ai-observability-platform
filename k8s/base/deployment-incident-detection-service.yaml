@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: incident-detection-service
+  namespace: ai-observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: incident-detection-service
+  template:
+    metadata:
+      labels:
+        app: incident-detection-service
+    spec:
+      containers:
+        - name: incident-detection-service
+          image: ghcr.io/your-org/incident-detection-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8084
+          envFrom:
+            - configMapRef:
+                name: platform-config
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8084
+            initialDelaySeconds: 20
+            periodSeconds: 10

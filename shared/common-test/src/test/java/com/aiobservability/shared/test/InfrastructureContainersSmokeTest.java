@@ -12,7 +12,7 @@ import org.testcontainers.utility.DockerImageName;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-@Testcontainers
+@Testcontainers(disabledWithoutDocker = true)
 class InfrastructureContainersSmokeTest {
     @Container
     static final PostgreSQLContainer<?> POSTGRES =

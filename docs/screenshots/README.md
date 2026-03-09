@@ -15,5 +15,7 @@ Phase 10 now includes committed visual assets in this folder.
 ## Notes
 
 - These images are portfolio placeholders generated from local evidence templates.
-- Replace any placeholder with a live environment capture when running the full demo stack.
+- Replace placeholders with live captures using:
+  - Bash: `./scripts/capture-live-evidence.sh`
+  - PowerShell: `powershell -ExecutionPolicy Bypass -File .\scripts\capture-live-evidence.ps1`
 - Keep the same filenames so README links and docs stay stable.

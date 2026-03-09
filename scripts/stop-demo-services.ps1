@@ -19,8 +19,9 @@ foreach ($entry in $entries) {
     $name = $parts[1]
 
     try {
-        $process = Get-Process -Id $processId -ErrorAction Stop
-        Stop-Process -Id $processId -Force
+        $null = Get-Process -Id $processId -ErrorAction Stop
+        # Kill the full process tree so Maven/Java children are not orphaned.
+        & taskkill /PID $processId /T /F | Out-Null
         Write-Host "Stopped $name (PID $processId)"
     } catch {
         Write-Host "Process for $name (PID $processId) is not running."

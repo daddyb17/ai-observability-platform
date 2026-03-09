@@ -1,0 +1,16 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace.yaml
+  - configmap-platform.yaml
+  - deployment-auth-service.yaml
+  - service-auth-service.yaml
+  - deployment-api-gateway.yaml
+  - service-api-gateway.yaml
+  - deployment-incident-detection-service.yaml
+  - service-incident-detection-service.yaml
+  - deployment-ai-analysis-service.yaml
+  - service-ai-analysis-service.yaml
+  - deployment-notification-service.yaml
+  - service-notification-service.yaml

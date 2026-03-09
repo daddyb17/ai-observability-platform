@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-analysis-service
+  namespace: ai-observability
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ai-analysis-service
+  template:
+    metadata:
+      labels:
+        app: ai-analysis-service
+    spec:
+      containers:
+        - name: ai-analysis-service
+          image: ghcr.io/your-org/ai-analysis-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8085
+          envFrom:
+            - configMapRef:
+                name: platform-config
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 30
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8085
+            initialDelaySeconds: 20
+            periodSeconds: 10

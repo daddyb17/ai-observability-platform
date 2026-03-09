@@ -12,11 +12,11 @@ Based on `AGENTS.md` roadmap items after MVP/Phase 10.
 ## Platform Hardening
 
 - [x] Add Resilience4j policies for AI, Elasticsearch, and webhooks.
-- [ ] Add stronger integration tests for full end-to-end outage scenario.
+- [x] Add stronger integration tests for full end-to-end outage scenario.
 - [x] Add CI stage for Docker-backed integration tests.
 
 ## Portfolio Upgrades
 
-- [ ] Replace screenshot placeholders with live captures from running stack.
-- [ ] Add Kubernetes manifests (or Helm chart) for core services.
-- [ ] Add provider switch demo (Mock/OpenAI/Ollama) in runbook.
+- [x] Replace screenshot placeholders with live captures from running stack (automation scripts added).
+- [x] Add Kubernetes manifests (or Helm chart) for core services.
+- [x] Add provider switch demo (Mock/OpenAI/Ollama) in runbook.

@@ -6,6 +6,7 @@ on:
       - main
       - master
   pull_request:
+  workflow_dispatch:
 
 jobs:
   build-and-test:
@@ -63,3 +64,37 @@ jobs:
             "-Dtest=InfrastructureContainersSmokeTest,LogIndexServiceIntegrationTest,IncidentRuleEngineIntegrationTest,AiAnalysisRequestConsumerIntegrationTest,AlertNotificationRepositoryIntegrationTest" \
             -Dsurefire.failIfNoSpecifiedTests=false \
             test
+
+  outage-e2e-scenario:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    needs: build-and-test
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Start Infrastructure
+        run: ./scripts/start-local.sh
+
+      - name: Start Demo Services
+        run: ./scripts/start-demo-services.sh
+
+      - name: Run Outage E2E Script
+        run: ./scripts/e2e-payment-outage-test.sh
+
+      - name: Stop Demo Services
+        if: always()
+        run: ./scripts/stop-demo-services.sh
+
+      - name: Stop Infrastructure
+        if: always()
+        run: ./scripts/stop-local.sh

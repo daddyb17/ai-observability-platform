@@ -23,6 +23,6 @@
 - `http://localhost:5601` Kibana
 - `http://localhost:8089` Kafka UI
 - `http://localhost:9200` Elasticsearch
-- `localhost:5432` PostgreSQL
+- `localhost:55432` PostgreSQL (default; override with `POSTGRES_PORT`)
 - `localhost:9092` Kafka
 - `localhost:6379` Redis
