@@ -1,10 +1,12 @@
 package com.aiobservability.services.incidentdetectionservice.service;
 
-import com.aiobservability.services.incidentdetectionservice.config.IncidentProperties;
 import com.aiobservability.services.incidentdetectionservice.kafka.IncidentEventPublisher;
 import com.aiobservability.services.incidentdetectionservice.model.IncidentCandidate;
 import com.aiobservability.services.incidentdetectionservice.model.IncidentRecord;
+import com.aiobservability.services.incidentdetectionservice.model.IncidentRuleConfig;
+import com.aiobservability.services.incidentdetectionservice.model.IncidentRulesUpdateRequest;
 import com.aiobservability.services.incidentdetectionservice.model.IncidentSignalRecord;
+import com.aiobservability.services.incidentdetectionservice.model.IncidentTimelineEntry;
 import com.aiobservability.services.incidentdetectionservice.repository.IncidentRepository;
 import com.aiobservability.shared.models.IncidentStatus;
 import com.aiobservability.shared.models.Severity;
@@ -14,6 +16,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -29,24 +32,25 @@ public class IncidentService {
     private final IncidentRepository incidentRepository;
     private final SeverityCalculator severityCalculator;
     private final IncidentEventPublisher incidentEventPublisher;
-    private final IncidentProperties properties;
+    private final IncidentRuleConfigService ruleConfigService;
     private final AtomicInteger incidentSequence = new AtomicInteger(1000);
 
     public IncidentService(
             IncidentRepository incidentRepository,
             SeverityCalculator severityCalculator,
             IncidentEventPublisher incidentEventPublisher,
-            IncidentProperties properties
+            IncidentRuleConfigService ruleConfigService
     ) {
         this.incidentRepository = incidentRepository;
         this.severityCalculator = severityCalculator;
         this.incidentEventPublisher = incidentEventPublisher;
-        this.properties = properties;
+        this.ruleConfigService = ruleConfigService;
     }
 
     public synchronized IncidentRecord processCandidate(IncidentCandidate candidate) {
         Instant now = Instant.now();
-        Instant correlationThreshold = now.minus(properties.rules().correlationWindowMinutes(), ChronoUnit.MINUTES);
+        IncidentRuleConfig rules = ruleConfigService.current();
+        Instant correlationThreshold = now.minus(rules.correlationWindowMinutes(), ChronoUnit.MINUTES);
         IncidentRecord existing = incidentRepository.findOpenBySignalKey(candidate.signalKey(), correlationThreshold);
 
         if (existing == null) {
@@ -107,6 +111,64 @@ public class IncidentService {
         return incidentRepository.findSignals(incidentId);
     }
 
+    public List<IncidentTimelineEntry> getIncidentTimeline(UUID incidentId) {
+        IncidentRecord incident = getIncident(incidentId);
+        List<IncidentSignalRecord> signals = incidentRepository.findSignals(incidentId);
+
+        List<IncidentTimelineEntry> timeline = new ArrayList<>();
+        timeline.add(new IncidentTimelineEntry(
+                incident.createdAt(),
+                "INCIDENT_CREATED",
+                "Incident created with status " + incident.status().name(),
+                Map.of(
+                        "severity", incident.severity().name(),
+                        "status", incident.status().name(),
+                        "dominantSignalType", incident.dominantSignalType(),
+                        "dominantSignalKey", incident.dominantSignalKey()
+                )
+        ));
+
+        for (IncidentSignalRecord signal : signals) {
+            timeline.add(new IncidentTimelineEntry(
+                    signal.observedAt(),
+                    "SIGNAL_OBSERVED",
+                    "Observed signal " + signal.signalType(),
+                    Map.of(
+                            "signalType", signal.signalType(),
+                            "signalKey", signal.signalKey(),
+                            "payload", signal.signalPayload()
+                    )
+            ));
+        }
+
+        if (!incident.updatedAt().equals(incident.createdAt())) {
+            timeline.add(new IncidentTimelineEntry(
+                    incident.updatedAt(),
+                    "INCIDENT_UPDATED",
+                    "Incident updated",
+                    Map.of(
+                            "severity", incident.severity().name(),
+                            "status", incident.status().name()
+                    )
+            ));
+        }
+
+        if (incident.resolvedAt() != null) {
+            timeline.add(new IncidentTimelineEntry(
+                    incident.resolvedAt(),
+                    "INCIDENT_RESOLVED",
+                    "Incident resolved",
+                    Map.of(
+                            "status", incident.status().name()
+                    )
+            ));
+        }
+
+        return timeline.stream()
+                .sorted(Comparator.comparing(IncidentTimelineEntry::timestamp))
+                .toList();
+    }
+
     public IncidentRecord updateStatus(UUID incidentId, IncidentStatus status) {
         IncidentRecord existing = getIncident(incidentId);
         Instant now = Instant.now();
@@ -139,22 +201,18 @@ public class IncidentService {
     }
 
     public Map<String, Object> rulesSummary() {
-        return Map.of(
-                "errorBurst", Map.of(
-                        "threshold", properties.rules().errorBurstThreshold(),
-                        "windowMinutes", properties.rules().errorBurstWindowMinutes()
-                ),
-                "traceFailureCluster", Map.of(
-                        "threshold", properties.rules().traceFailureThreshold(),
-                        "windowMinutes", properties.rules().traceFailureWindowMinutes()
-                ),
-                "correlationWindowMinutes", properties.rules().correlationWindowMinutes()
-        );
+        return ruleConfigService.summary();
+    }
+
+    public Map<String, Object> updateRules(IncidentRulesUpdateRequest request) {
+        ruleConfigService.update(request);
+        return ruleConfigService.summary();
     }
 
     public Map<String, Object> evaluateSummary() {
+        IncidentRuleConfig rules = ruleConfigService.current();
         List<IncidentRecord> openIncidents = incidentRepository.findOpenUpdatedAfter(
-                Instant.now().minus(properties.rules().correlationWindowMinutes(), ChronoUnit.MINUTES)
+                Instant.now().minus(rules.correlationWindowMinutes(), ChronoUnit.MINUTES)
         );
         return Map.of(
                 "evaluatedAt", Instant.now(),

@@ -1,7 +1,7 @@
 package com.aiobservability.services.incidentdetectionservice.service;
 
-import com.aiobservability.services.incidentdetectionservice.config.IncidentProperties;
 import com.aiobservability.services.incidentdetectionservice.model.IncidentCandidate;
+import com.aiobservability.services.incidentdetectionservice.model.IncidentRuleConfig;
 import com.aiobservability.shared.models.LogEventPayload;
 import com.aiobservability.shared.models.MetricSignalEvent;
 import com.aiobservability.shared.models.TraceSummaryEvent;
@@ -18,7 +18,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 public class IncidentRuleEngine {
-    private final IncidentProperties properties;
+    private final IncidentRuleConfigService ruleConfigService;
     private final IncidentService incidentService;
 
     private final Map<String, Deque<Instant>> errorBursts = new ConcurrentHashMap<>();
@@ -28,8 +28,8 @@ public class IncidentRuleEngine {
     private final Map<String, Instant> recentServiceBreaches = new ConcurrentHashMap<>();
     private final Map<String, Instant> cascadeLastTriggered = new ConcurrentHashMap<>();
 
-    public IncidentRuleEngine(IncidentProperties properties, IncidentService incidentService) {
-        this.properties = properties;
+    public IncidentRuleEngine(IncidentRuleConfigService ruleConfigService, IncidentService incidentService) {
+        this.ruleConfigService = ruleConfigService;
         this.incidentService = incidentService;
     }
 
@@ -41,10 +41,11 @@ public class IncidentRuleEngine {
             return;
         }
         Instant observedAt = logEvent.timestamp() == null ? Instant.now() : logEvent.timestamp();
+        IncidentRuleConfig rules = ruleConfigService.current();
         String key = logEvent.serviceName() + ":" + logEvent.exceptionType();
-        trackBurst(errorBursts, key, observedAt, properties.rules().errorBurstWindowMinutes());
+        trackBurst(errorBursts, key, observedAt, rules.errorBurstWindowMinutes());
 
-        if (errorBursts.getOrDefault(key, new ArrayDeque<>()).size() >= properties.rules().errorBurstThreshold()
+        if (errorBursts.getOrDefault(key, new ArrayDeque<>()).size() >= rules.errorBurstThreshold()
                 && shouldTrigger(errorBurstLastTriggered, key, observedAt)) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("serviceName", logEvent.serviceName());
@@ -113,10 +114,11 @@ public class IncidentRuleEngine {
             return;
         }
         Instant observedAt = traceSummaryEvent.startedAt() == null ? Instant.now() : traceSummaryEvent.startedAt();
+        IncidentRuleConfig rules = ruleConfigService.current();
         String key = traceSummaryEvent.bottleneckService();
-        trackBurst(traceFailureClusters, key, observedAt, properties.rules().traceFailureWindowMinutes());
+        trackBurst(traceFailureClusters, key, observedAt, rules.traceFailureWindowMinutes());
 
-        if (traceFailureClusters.getOrDefault(key, new ArrayDeque<>()).size() >= properties.rules().traceFailureThreshold()
+        if (traceFailureClusters.getOrDefault(key, new ArrayDeque<>()).size() >= rules.traceFailureThreshold()
                 && shouldTrigger(traceFailureLastTriggered, key, observedAt)) {
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("traceId", traceSummaryEvent.traceId());
@@ -144,10 +146,11 @@ public class IncidentRuleEngine {
     private void maybeTriggerCascade(Instant observedAt) {
         Instant orderBreach = recentServiceBreaches.get("order-service");
         Instant paymentBreach = recentServiceBreaches.get("payment-service");
+        IncidentRuleConfig rules = ruleConfigService.current();
         if (orderBreach == null || paymentBreach == null) {
             return;
         }
-        Instant cutoff = observedAt.minus(properties.rules().correlationWindowMinutes(), ChronoUnit.MINUTES);
+        Instant cutoff = observedAt.minus(rules.correlationWindowMinutes(), ChronoUnit.MINUTES);
         if (orderBreach.isBefore(cutoff) || paymentBreach.isBefore(cutoff)) {
             return;
         }

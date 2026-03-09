@@ -14,6 +14,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -46,7 +47,19 @@ public class AlertDispatchService {
 
         for (String channel : channels) {
             String normalized = channel.toLowerCase(Locale.ROOT);
-            Map<String, Object> persistedPayload = toPersistedPayload(message, normalized);
+            String dedupKey = dedupKey(message);
+            Map<String, Object> persistedPayload = toPersistedPayload(message, normalized, dedupKey);
+
+            if (shouldSuppress(message, normalized, dedupKey)) {
+                repository.createSuppressed(
+                        message.incidentId(),
+                        normalized,
+                        persistedPayload,
+                        "suppressed duplicate within " + properties.suppressionWindowMinutes() + " minute window"
+                );
+                continue;
+            }
+
             AlertNotificationRecord record = repository.createPending(message.incidentId(), normalized, persistedPayload);
 
             NotificationChannelClient client = clientsByChannel.get(normalized);
@@ -89,7 +102,7 @@ public class AlertDispatchService {
         return Math.min(value, properties.queryLimitMax());
     }
 
-    private Map<String, Object> toPersistedPayload(AlertMessage message, String channel) {
+    private Map<String, Object> toPersistedPayload(AlertMessage message, String channel, String dedupKey) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("channel", channel);
         payload.put("incidentId", message.incidentId());
@@ -99,8 +112,31 @@ public class AlertDispatchService {
         payload.put("recommendedActions", message.recommendedActions());
         payload.put("sourceEventType", message.sourceEventType());
         payload.put("occurredAt", message.occurredAt());
+        payload.put("dedupKey", dedupKey);
         payload.put("rawPayload", message.rawPayload());
         return payload;
+    }
+
+    private boolean shouldSuppress(AlertMessage message, String channel, String dedupKey) {
+        if (!properties.suppressionEnabled()) {
+            return false;
+        }
+        Instant since = Instant.now().minusSeconds(properties.suppressionWindowMinutes() * 60L);
+        return repository.existsRecentByDedupKey(message.incidentId(), channel, dedupKey, since);
+    }
+
+    private String dedupKey(AlertMessage message) {
+        return String.join(
+                "|",
+                valueOrUnknown(message.sourceEventType()),
+                message.incidentId().toString(),
+                valueOrUnknown(message.severity()),
+                valueOrUnknown(message.title())
+        );
+    }
+
+    private String valueOrUnknown(String value) {
+        return value == null || value.isBlank() ? "unknown" : value;
     }
 
     private void sleepRetryDelay() {

@@ -10,6 +10,8 @@ public record NotificationProperties(
         String webhookUrl,
         String slackWebhookUrl,
         boolean emailSinkEnabled,
+        boolean suppressionEnabled,
+        int suppressionWindowMinutes,
         int maxRetries,
         long retryDelayMs,
         int queryLimitDefault,
@@ -18,6 +20,7 @@ public record NotificationProperties(
 ) {
     public NotificationProperties {
         channels = channels == null || channels.isEmpty() ? List.of("webhook", "mock-slack", "email-sink") : channels;
+        suppressionWindowMinutes = suppressionWindowMinutes <= 0 ? 10 : suppressionWindowMinutes;
         maxRetries = maxRetries < 0 ? 2 : maxRetries;
         retryDelayMs = retryDelayMs < 0 ? 500 : retryDelayMs;
         queryLimitDefault = queryLimitDefault <= 0 ? 50 : queryLimitDefault;

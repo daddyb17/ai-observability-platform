@@ -36,6 +36,8 @@ app:
     webhook-url: ${NOTIFICATION_WEBHOOK_URL:}
     slack-webhook-url: ${SLACK_WEBHOOK_URL:}
     email-sink-enabled: true
+    suppression-enabled: ${NOTIFICATION_SUPPRESSION_ENABLED:true}
+    suppression-window-minutes: ${NOTIFICATION_SUPPRESSION_WINDOW_MINUTES:10}
     max-retries: ${NOTIFICATION_MAX_RETRIES:2}
     retry-delay-ms: ${NOTIFICATION_RETRY_DELAY_MS:500}
     query-limit-default: 50

@@ -13,6 +13,14 @@ This repository demonstrates production-style Java microservices, event-driven d
 - `ai-analysis-service` builds incident evidence summaries and root-cause hypotheses.
 - `notification-service` emits outbound alerts and stores alert history.
 
+Detailed architecture docs:
+
+- `docs/architecture/system-context.md`
+- `docs/architecture/container-diagram.md`
+- `docs/architecture/sequence-log-ingestion.md`
+- `docs/architecture/sequence-incident-analysis.md`
+- `docs/architecture/api-contracts.md`
+
 ## Service Responsibilities
 
 - `auth-service`: login/refresh/logout/me JWT flow.
@@ -47,7 +55,8 @@ This repository demonstrates production-style Java microservices, event-driven d
 2. Build all modules:
    - `./mvnw clean verify` (Windows: `mvnw.cmd clean verify`)
 3. Start services as needed:
-   - Use module-level Maven commands or IDE run configs.
+   - PowerShell: `powershell -ExecutionPolicy Bypass -File .\\scripts\\start-demo-services.ps1`
+   - Bash: `./scripts/start-demo-services.sh`
 
 ## Phase 2 Infrastructure Endpoints
 
@@ -70,6 +79,9 @@ This repository demonstrates production-style Java microservices, event-driven d
 5. Review generated incidents and AI analysis.
 6. Confirm outbound alert delivery.
 7. Simulate latency spikes (`scripts/simulate-latency-spike.sh` or `scripts/simulate-latency-spike.ps1`).
+8. Stop demo services when done:
+   - PowerShell: `powershell -ExecutionPolicy Bypass -File .\\scripts\\stop-demo-services.ps1`
+   - Bash: `./scripts/stop-demo-services.sh`
 
 ## Sample API Calls
 
@@ -83,6 +95,9 @@ This repository demonstrates production-style Java microservices, event-driven d
 - Unit tests focus on rule logic, severity calculation, and payload builders.
 - Integration tests include Testcontainers-based checks for:
   - shared infrastructure container bootstrapping (`common-test`)
+  - log indexing into Elasticsearch (`log-ingestion-service`)
+  - repeated-error burst to incident persistence (`incident-detection-service`)
+  - AI analysis persistence from request-event consumption (`ai-analysis-service`)
   - notification persistence lifecycle with PostgreSQL (`notification-service`)
   - optional heavier container checks can be enabled with:
     - `RUN_KAFKA_TESTCONTAINER=true`
@@ -95,6 +110,13 @@ This repository demonstrates production-style Java microservices, event-driven d
 - Runs on pushes/PRs, using Java 21 and Maven cache:
   - `./mvnw -B -ntp test`
   - `./mvnw -B -ntp package -DskipTests`
+
+## Documentation and PR Workflow
+
+- PR template: `.github/pull_request_template.md`
+- Screenshot assets: `docs/screenshots/README.md`
+- Demo capture runbook: `docs/runbooks/demo-capture-runbook.md`
+- Post-MVP checklist: `docs/runbooks/next-steps-checklist.md`
 
 ## Future Improvements
 

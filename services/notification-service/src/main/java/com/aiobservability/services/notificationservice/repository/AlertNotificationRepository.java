@@ -67,6 +67,66 @@ public class AlertNotificationRepository {
         return record;
     }
 
+    public AlertNotificationRecord createSuppressed(
+            UUID incidentId,
+            String channel,
+            Map<String, Object> payload,
+            String reason
+    ) {
+        AlertNotificationRecord record = new AlertNotificationRecord(
+                UUID.randomUUID(),
+                incidentId,
+                channel,
+                payload,
+                AlertStatus.SUPPRESSED,
+                0,
+                null,
+                reason
+        );
+        jdbcTemplate.update(connection -> {
+            PreparedStatement statement = connection.prepareStatement("""
+                    insert into alert_notifications (
+                        id, incident_id, channel, payload, delivery_status, attempt_count, sent_at, error_message
+                    ) values (?, ?, ?, ?::jsonb, ?, ?, ?, ?)
+                    """);
+            statement.setObject(1, record.id());
+            statement.setObject(2, record.incidentId());
+            statement.setString(3, record.channel());
+            statement.setString(4, toJson(record.payload()));
+            statement.setString(5, record.deliveryStatus().name());
+            statement.setInt(6, record.attemptCount());
+            statement.setTimestamp(7, null);
+            statement.setString(8, record.errorMessage());
+            return statement;
+        });
+        return record;
+    }
+
+    public boolean existsRecentByDedupKey(
+            UUID incidentId,
+            String channel,
+            String dedupKey,
+            Instant since
+    ) {
+        Integer count = jdbcTemplate.queryForObject(
+                """
+                select count(1)
+                from alert_notifications
+                where incident_id = ?
+                  and channel = ?
+                  and payload->>'dedupKey' = ?
+                  and coalesce((payload->>'occurredAt')::timestamptz, sent_at, now()) >= ?
+                  and delivery_status in ('PENDING', 'RETRYING', 'SENT', 'SUPPRESSED')
+                """,
+                Integer.class,
+                incidentId,
+                channel,
+                dedupKey,
+                Timestamp.from(since)
+        );
+        return count != null && count > 0;
+    }
+
     public void markRetrying(UUID notificationId, int attemptCount, String errorMessage) {
         updateStatus(notificationId, AlertStatus.RETRYING, attemptCount, null, errorMessage);
     }

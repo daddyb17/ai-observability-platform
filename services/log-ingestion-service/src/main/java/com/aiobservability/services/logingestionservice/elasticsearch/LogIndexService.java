@@ -4,6 +4,11 @@ import com.aiobservability.services.logingestionservice.config.LogIngestionPrope
 import com.aiobservability.services.logingestionservice.model.EnrichedLogEvent;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
@@ -18,6 +23,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Supplier;
 
 @Service
 public class LogIndexService {
@@ -26,6 +32,8 @@ public class LogIndexService {
     private final LogIngestionProperties properties;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
+    private final CircuitBreaker circuitBreaker;
+    private final Retry retry;
 
     public LogIndexService(LogIngestionProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
@@ -33,6 +41,23 @@ public class LogIndexService {
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
+        this.circuitBreaker = CircuitBreaker.of(
+                "elasticsearchIndex",
+                CircuitBreakerConfig.custom()
+                        .failureRateThreshold(50.0f)
+                        .slidingWindowSize(10)
+                        .minimumNumberOfCalls(5)
+                        .waitDurationInOpenState(Duration.ofSeconds(20))
+                        .build()
+        );
+        this.retry = Retry.of(
+                "elasticsearchIndex",
+                RetryConfig.custom()
+                        .maxAttempts(Math.max(1, properties.elasticsearchMaxAttempts()))
+                        .waitDuration(Duration.ofMillis(Math.max(0, properties.elasticsearchBackoffMs())))
+                        .retryExceptions(IOException.class, IllegalStateException.class)
+                        .build()
+        );
     }
 
     public String index(EnrichedLogEvent logEvent) {
@@ -42,42 +67,56 @@ public class LogIndexService {
                 + "?op_type=create";
         String body = toJson(document(logEvent));
 
-        Exception lastFailure = null;
-        for (int attempt = 1; attempt <= properties.elasticsearchMaxAttempts(); attempt++) {
-            try {
-                HttpRequest request = HttpRequest.newBuilder()
-                        .uri(URI.create(endpoint))
-                        .timeout(Duration.ofSeconds(10))
-                        .header("Content-Type", "application/json")
-                        .POST(HttpRequest.BodyPublishers.ofString(body))
-                        .build();
-                HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-                if (response.statusCode() >= 200 && response.statusCode() < 300) {
-                    return indexName;
-                }
-                if (!isRetryable(response.statusCode())) {
-                    throw new ResponseStatusException(
-                            HttpStatus.BAD_GATEWAY,
-                            "Elasticsearch indexing failed with status " + response.statusCode() + ": " + response.body()
-                    );
-                }
-                lastFailure = new IllegalStateException(
-                        "Elasticsearch retryable status " + response.statusCode() + ": " + response.body()
-                );
-            } catch (IOException | InterruptedException ex) {
-                if (ex instanceof InterruptedException) {
-                    Thread.currentThread().interrupt();
-                }
-                lastFailure = ex;
-            }
-            sleepBackoff();
-        }
-
-        throw new ResponseStatusException(
-                HttpStatus.BAD_GATEWAY,
-                "Elasticsearch indexing failed after retries",
-                lastFailure
+        Supplier<String> operation = Retry.decorateSupplier(
+                retry,
+                CircuitBreaker.decorateSupplier(circuitBreaker, () -> doIndexRequest(endpoint, body, indexName))
         );
+        try {
+            return operation.get();
+        } catch (CallNotPermittedException ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Elasticsearch circuit is open; indexing temporarily blocked",
+                    ex
+            );
+        } catch (ResponseStatusException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_GATEWAY,
+                    "Elasticsearch indexing failed after resilience retries",
+                    ex
+            );
+        }
+    }
+
+    private String doIndexRequest(String endpoint, String body, String indexName) {
+        try {
+            HttpRequest request = HttpRequest.newBuilder()
+                    .uri(URI.create(endpoint))
+                    .timeout(Duration.ofSeconds(10))
+                    .header("Content-Type", "application/json")
+                    .POST(HttpRequest.BodyPublishers.ofString(body))
+                    .build();
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() >= 200 && response.statusCode() < 300) {
+                return indexName;
+            }
+            if (!isRetryable(response.statusCode())) {
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_GATEWAY,
+                        "Elasticsearch indexing failed with status " + response.statusCode() + ": " + response.body()
+                );
+            }
+            throw new IllegalStateException(
+                    "Elasticsearch retryable status " + response.statusCode() + ": " + response.body()
+            );
+        } catch (IOException ex) {
+            throw new IllegalStateException("Elasticsearch I/O failure", ex);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("Elasticsearch indexing interrupted", ex);
+        }
     }
 
     private Map<String, Object> document(EnrichedLogEvent logEvent) {
@@ -107,14 +146,6 @@ public class LogIndexService {
             return objectMapper.writeValueAsString(value);
         } catch (JsonProcessingException ex) {
             throw new IllegalStateException("Failed to serialize Elasticsearch document", ex);
-        }
-    }
-
-    private void sleepBackoff() {
-        try {
-            Thread.sleep(properties.elasticsearchBackoffMs());
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
         }
     }
 

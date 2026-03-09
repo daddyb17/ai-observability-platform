@@ -11,9 +11,15 @@ import com.aiobservability.services.aianalysisservice.model.IncidentContext;
 import com.aiobservability.services.aianalysisservice.model.PromptEvidence;
 import com.aiobservability.services.aianalysisservice.repository.IncidentAnalysisRepository;
 import com.aiobservability.services.aianalysisservice.repository.IncidentContextRepository;
+import io.github.resilience4j.circuitbreaker.CallNotPermittedException;
+import io.github.resilience4j.circuitbreaker.CircuitBreaker;
+import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
+import io.github.resilience4j.retry.Retry;
+import io.github.resilience4j.retry.RetryConfig;
 import org.springframework.stereotype.Service;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -23,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -35,6 +42,8 @@ public class AiAnalysisService {
     private final AiClientResolver clientResolver;
     private final AiAnalysisResultPublisher resultPublisher;
     private final AiProperties properties;
+    private final CircuitBreaker circuitBreaker;
+    private final Retry retry;
 
     public AiAnalysisService(
             IncidentContextRepository contextRepository,
@@ -52,6 +61,23 @@ public class AiAnalysisService {
         this.clientResolver = clientResolver;
         this.resultPublisher = resultPublisher;
         this.properties = properties;
+        this.circuitBreaker = CircuitBreaker.of(
+                "aiProvider",
+                CircuitBreakerConfig.custom()
+                        .failureRateThreshold(50.0f)
+                        .slidingWindowSize(10)
+                        .minimumNumberOfCalls(5)
+                        .waitDurationInOpenState(Duration.ofSeconds(20))
+                        .build()
+        );
+        this.retry = Retry.of(
+                "aiProvider",
+                RetryConfig.custom()
+                        .maxAttempts(Math.max(1, properties.maxRetries() + 1))
+                        .waitDuration(Duration.ofMillis(250))
+                        .retryExceptions(RuntimeException.class)
+                        .build()
+        );
     }
 
     public AiAnalysisRecord analyzeIncident(UUID incidentId, String triggerSource) {
@@ -91,19 +117,21 @@ public class AiAnalysisService {
             String triggerSource
     ) {
         AiClient client = clientResolver.resolve();
-        Exception lastFailure = null;
-        int maxAttempts = Math.max(1, properties.maxRetries() + 1);
-
-        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            try {
-                AiAnalysisResult result = runWithTimeout(client, prompt);
-                if (result != null) {
-                    return result;
-                }
-                lastFailure = new IllegalStateException("AI client returned null response");
-            } catch (Exception ex) {
-                lastFailure = ex;
+        Exception lastFailure;
+        Supplier<AiAnalysisResult> operation = Retry.decorateSupplier(
+                retry,
+                CircuitBreaker.decorateSupplier(circuitBreaker, () -> runWithTimeoutUnchecked(client, prompt))
+        );
+        try {
+            AiAnalysisResult result = operation.get();
+            if (result != null) {
+                return result;
             }
+            lastFailure = new IllegalStateException("AI client returned null response");
+        } catch (CallNotPermittedException ex) {
+            lastFailure = ex;
+        } catch (Exception ex) {
+            lastFailure = unwrap(ex);
         }
         return deterministicFallback(prompt, incident, triggerSource, client, lastFailure);
     }
@@ -112,6 +140,14 @@ public class AiAnalysisService {
             throws TimeoutException, ExecutionException, InterruptedException {
         CompletableFuture<AiAnalysisResult> future = CompletableFuture.supplyAsync(() -> client.analyze(prompt));
         return future.get(properties.timeoutSeconds(), TimeUnit.SECONDS);
+    }
+
+    private AiAnalysisResult runWithTimeoutUnchecked(AiClient client, IncidentAnalysisPrompt prompt) {
+        try {
+            return runWithTimeout(client, prompt);
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
     }
 
     private AiAnalysisResult deterministicFallback(
@@ -155,5 +191,12 @@ public class AiAnalysisService {
                 raw,
                 true
         );
+    }
+
+    private Exception unwrap(Exception exception) {
+        if (exception.getCause() instanceof Exception cause) {
+            return cause;
+        }
+        return exception;
     }
 }

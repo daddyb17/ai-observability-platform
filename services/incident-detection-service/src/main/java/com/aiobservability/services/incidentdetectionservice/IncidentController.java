@@ -2,6 +2,8 @@ package com.aiobservability.services.incidentdetectionservice;
 
 import com.aiobservability.services.incidentdetectionservice.model.IncidentRecord;
 import com.aiobservability.services.incidentdetectionservice.model.IncidentSignalRecord;
+import com.aiobservability.services.incidentdetectionservice.model.IncidentRulesUpdateRequest;
+import com.aiobservability.services.incidentdetectionservice.model.IncidentTimelineEntry;
 import com.aiobservability.services.incidentdetectionservice.model.IncidentStatusUpdateRequest;
 import com.aiobservability.services.incidentdetectionservice.service.IncidentService;
 import com.aiobservability.shared.models.IncidentStatus;
@@ -45,6 +47,11 @@ public class IncidentController {
         return ResponseEntity.ok(incidentService.getIncidentSignals(parseIncidentId(id)));
     }
 
+    @GetMapping("/api/incidents/{id}/timeline")
+    public ResponseEntity<List<IncidentTimelineEntry>> getIncidentTimeline(@PathVariable("id") String id) {
+        return ResponseEntity.ok(incidentService.getIncidentTimeline(parseIncidentId(id)));
+    }
+
     @PatchMapping("/api/incidents/{id}/status")
     public ResponseEntity<IncidentRecord> updateStatus(
             @PathVariable("id") String id,
@@ -69,6 +76,17 @@ public class IncidentController {
     @GetMapping("/internal/incidents/rules")
     public ResponseEntity<Map<String, Object>> rules() {
         return ResponseEntity.ok(incidentService.rulesSummary());
+    }
+
+    @PatchMapping("/internal/incidents/rules")
+    public ResponseEntity<Map<String, Object>> updateRules(
+            @RequestBody(required = false) IncidentRulesUpdateRequest request
+    ) {
+        try {
+            return ResponseEntity.ok(incidentService.updateRules(request));
+        } catch (IllegalArgumentException ex) {
+            throw new ResponseStatusException(BAD_REQUEST, ex.getMessage());
+        }
     }
 
     @PostMapping("/internal/incidents/evaluate")
