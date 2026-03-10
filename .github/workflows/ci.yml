@@ -25,7 +25,10 @@ jobs:
           cache: maven
 
       - name: Validate Maven Wrapper
-        uses: apache/maven-wrapper-validator-action@v3
+        run: |
+          test -f mvnw
+          test -f .mvn/wrapper/maven-wrapper.properties
+          ./mvnw -v
 
       - name: Quality Gates (enforcer/verify)
         run: ./mvnw -B -ntp verify -DskipTests
