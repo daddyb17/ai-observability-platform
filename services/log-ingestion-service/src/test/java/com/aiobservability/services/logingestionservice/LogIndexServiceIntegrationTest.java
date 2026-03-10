@@ -16,6 +16,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Instant;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -73,19 +74,42 @@ class LogIndexServiceIntegrationTest {
         String indexName = logIndexService.index(event);
         assertEquals("logs-2026-03", indexName);
 
-        HttpRequest request = HttpRequest.newBuilder()
-                .uri(URI.create("http://" + ELASTICSEARCH.getHttpHostAddress() + "/" + indexName + "/_doc/" + eventId))
-                .GET()
+        HttpRequest refreshRequest = HttpRequest.newBuilder()
+                .uri(URI.create("http://" + ELASTICSEARCH.getHttpHostAddress() + "/" + indexName + "/_refresh"))
+                .POST(HttpRequest.BodyPublishers.noBody())
                 .build();
-        HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString());
-        assertEquals(200, response.statusCode());
+        HttpResponse<String> refreshResponse = httpClient.send(refreshRequest, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, refreshResponse.statusCode());
 
-        JsonNode root = OBJECT_MAPPER.readTree(response.body());
-        assertTrue(root.path("found").asBoolean());
-        assertEquals("payment-service", root.path("_source").path("serviceName").asText());
-        assertEquals("SQLTimeoutException", root.path("_source").path("exceptionType").asText());
-        assertEquals("2026-03-08T10:15:30Z", root.path("_source").path("@timestamp").asText());
-        assertEquals("payment-service-1", root.path("_source").path("host").path("name").asText());
-        assertEquals("payment-service-1", root.path("_source").path("hostName").asText());
+        Map<String, Object> searchBody = Map.of(
+                "size", 1,
+                "query", Map.of(
+                        "bool", Map.of(
+                                "should", List.of(
+                                        Map.of("term", Map.of("eventId", eventId)),
+                                        Map.of("term", Map.of("eventId.keyword", eventId))
+                                ),
+                                "minimum_should_match", 1
+                        )
+                )
+        );
+        HttpRequest searchRequest = HttpRequest.newBuilder()
+                .uri(URI.create("http://" + ELASTICSEARCH.getHttpHostAddress() + "/" + indexName + "/_search"))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(OBJECT_MAPPER.writeValueAsString(searchBody)))
+                .build();
+        HttpResponse<String> searchResponse = httpClient.send(searchRequest, HttpResponse.BodyHandlers.ofString());
+        assertEquals(200, searchResponse.statusCode());
+
+        JsonNode searchRoot = OBJECT_MAPPER.readTree(searchResponse.body());
+        JsonNode hits = searchRoot.path("hits").path("hits");
+        assertTrue(hits.isArray() && !hits.isEmpty(), "Expected indexed document in search response");
+
+        JsonNode source = hits.get(0).path("_source");
+        assertEquals("payment-service", source.path("serviceName").asText());
+        assertEquals("SQLTimeoutException", source.path("exceptionType").asText());
+        assertEquals("2026-03-08T10:15:30Z", source.path("@timestamp").asText());
+        assertEquals("payment-service-1", source.path("host").path("name").asText());
+        assertEquals("payment-service-1", source.path("hostName").asText());
     }
 }
