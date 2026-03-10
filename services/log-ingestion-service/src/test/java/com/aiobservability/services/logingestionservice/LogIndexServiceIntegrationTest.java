@@ -84,5 +84,7 @@ class LogIndexServiceIntegrationTest {
         assertTrue(root.path("found").asBoolean());
         assertEquals("payment-service", root.path("_source").path("serviceName").asText());
         assertEquals("SQLTimeoutException", root.path("_source").path("exceptionType").asText());
+        assertEquals("payment-service-1", root.path("_source").path("host").path("name").asText());
+        assertEquals("payment-service-1", root.path("_source").path("hostName").asText());
     }
 }

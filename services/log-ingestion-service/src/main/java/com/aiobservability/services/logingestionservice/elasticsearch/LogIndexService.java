@@ -134,7 +134,10 @@ public class LogIndexService {
         doc.put("stackTrace", logEvent.stackTrace());
         doc.put("traceId", logEvent.traceId());
         doc.put("spanId", logEvent.spanId());
-        doc.put("host", logEvent.host());
+        Map<String, Object> host = new LinkedHashMap<>();
+        host.put("name", logEvent.host());
+        doc.put("host", host);
+        doc.put("hostName", logEvent.host());
         doc.put("tags", logEvent.tags());
         return doc;
     }
