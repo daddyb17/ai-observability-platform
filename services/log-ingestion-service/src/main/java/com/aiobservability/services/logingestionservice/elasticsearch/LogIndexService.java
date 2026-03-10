@@ -125,9 +125,9 @@ public class LogIndexService {
         Map<String, Object> doc = new LinkedHashMap<>();
         doc.put("eventId", logEvent.eventId());
         // Keep ECS-style timestamp for environments where logs-* resolves to a data stream.
-        doc.put("@timestamp", logEvent.timestamp());
-        doc.put("timestamp", logEvent.timestamp());
-        doc.put("ingestionTimestamp", logEvent.ingestionTimestamp());
+        doc.put("@timestamp", logEvent.timestamp().toString());
+        doc.put("timestamp", logEvent.timestamp().toString());
+        doc.put("ingestionTimestamp", logEvent.ingestionTimestamp().toString());
         doc.put("serviceName", logEvent.serviceName());
         doc.put("environment", logEvent.environment());
         doc.put("level", logEvent.level());
