@@ -10,6 +10,7 @@ $aiUrl = if ($env:AI_URL) { $env:AI_URL } else { "http://localhost:8085" }
 $notificationUrl = if ($env:NOTIFICATION_URL) { $env:NOTIFICATION_URL } else { "http://localhost:8086" }
 $grafanaUrl = if ($env:GRAFANA_URL) { $env:GRAFANA_URL } else { "http://localhost:3000/d/platform-overview/platform-overview" }
 $jaegerUrl = if ($env:JAEGER_URL) { $env:JAEGER_URL } else { "http://localhost:16686/search" }
+$scenarioStart = if ($env:SCENARIO_START_UTC) { [DateTimeOffset]::Parse($env:SCENARIO_START_UTC).ToUniversalTime() } else { [DateTimeOffset]::FromUnixTimeSeconds(0) }
 
 New-Item -ItemType Directory -Force -Path $liveDir | Out-Null
 
@@ -61,7 +62,20 @@ $incidents = Invoke-RestMethod -Method Get -Uri "$incidentUrl/api/incidents"
 if (-not $incidents -or $incidents.Count -eq 0) {
     throw "No incidents available. Run outage simulation first."
 }
-$incidentId = $incidents[0].id
+$incidentId = $env:INCIDENT_ID
+if (-not $incidentId) {
+    $recentIncidents = @($incidents | Where-Object {
+            try {
+                $_.createdAt -and ([DateTimeOffset]::Parse($_.createdAt).ToUniversalTime() -ge $scenarioStart)
+            } catch {
+                $false
+            }
+        })
+    if (-not $recentIncidents -or $recentIncidents.Count -eq 0) {
+        throw "No incidents available for the requested run. Set INCIDENT_ID or run outage simulation first."
+    }
+    $incidentId = ($recentIncidents | Sort-Object createdAt -Descending | Select-Object -First 1).id
+}
 $incidents | ConvertTo-Json -Depth 20 | Set-Content -Path (Join-Path $liveDir "incidents-latest.json") -Encoding UTF8
 
 Write-Host "Capturing live API evidence for incident $incidentId ..."

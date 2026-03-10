@@ -36,6 +36,19 @@ if (-not $env:POSTGRES_URL) {
 }
 Write-Host "Using POSTGRES_URL=$($env:POSTGRES_URL)"
 
+if (-not $env:JWT_SECRET_BASE64) {
+    $bytes = New-Object byte[] 32
+    $rng = [System.Security.Cryptography.RandomNumberGenerator]::Create()
+    $rng.GetBytes($bytes)
+    $rng.Dispose()
+    $env:JWT_SECRET_BASE64 = [Convert]::ToBase64String($bytes)
+    Write-Host "Generated ephemeral JWT_SECRET_BASE64 for this local run."
+}
+if (-not $env:INTERNAL_API_TOKEN) {
+    $env:INTERNAL_API_TOKEN = ([guid]::NewGuid().ToString("N") + [guid]::NewGuid().ToString("N"))
+    Write-Host "Generated INTERNAL_API_TOKEN for /internal endpoints."
+}
+
 $services = @(
     @{ Module = "services/auth-service"; Port = 8081; Name = "auth-service" },
     @{ Module = "services/log-ingestion-service"; Port = 8082; Name = "log-ingestion-service" },

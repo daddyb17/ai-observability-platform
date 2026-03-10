@@ -6,10 +6,11 @@ $paymentUrl = if ($env:PAYMENT_URL) { $env:PAYMENT_URL } else { "http://localhos
 $incidentUrl = if ($env:INCIDENT_URL) { $env:INCIDENT_URL } else { "http://localhost:8084" }
 $aiUrl = if ($env:AI_URL) { $env:AI_URL } else { "http://localhost:8085" }
 $notificationUrl = if ($env:NOTIFICATION_URL) { $env:NOTIFICATION_URL } else { "http://localhost:8086" }
-$waitSeconds = if ($env:WAIT_SECONDS) { [int]$env:WAIT_SECONDS } else { 40 }
-$loadCount = if ($env:LOAD_COUNT) { [int]$env:LOAD_COUNT } else { 50 }
-$analysisWaitSeconds = if ($env:ANALYSIS_WAIT_SECONDS) { [int]$env:ANALYSIS_WAIT_SECONDS } else { 60 }
-$alertWaitSeconds = if ($env:ALERT_WAIT_SECONDS) { [int]$env:ALERT_WAIT_SECONDS } else { 45 }
+$waitSeconds = if ($env:WAIT_SECONDS) { [int]$env:WAIT_SECONDS } else { 80 }
+$loadCount = if ($env:LOAD_COUNT) { [int]$env:LOAD_COUNT } else { 200 }
+$analysisWaitSeconds = if ($env:ANALYSIS_WAIT_SECONDS) { [int]$env:ANALYSIS_WAIT_SECONDS } else { 120 }
+$alertWaitSeconds = if ($env:ALERT_WAIT_SECONDS) { [int]$env:ALERT_WAIT_SECONDS } else { 90 }
+$scenarioStart = [DateTimeOffset]::UtcNow
 
 function Require-Endpoint {
     param(
@@ -42,13 +43,24 @@ Require-Endpoint -Name "notification-service health" -Url "$notificationUrl/actu
 Write-Host "Running outage simulation..."
 $env:WAIT_SECONDS = $waitSeconds
 $env:LOAD_COUNT = $loadCount
+$env:SCENARIO_START_UTC = $scenarioStart.ToString("o")
 powershell -ExecutionPolicy Bypass -File "$scriptDir\simulate-payment-outage.ps1"
 
 $incidents = Invoke-RestMethod -Method Get -Uri "$incidentUrl/api/incidents"
-if (-not $incidents -or $incidents.Count -eq 0) {
-    throw "No incident was created during outage simulation."
+$recentIncidents = @()
+if ($incidents) {
+    $recentIncidents = @($incidents | Where-Object {
+            try {
+                $_.createdAt -and ([DateTimeOffset]::Parse($_.createdAt).ToUniversalTime() -ge $scenarioStart)
+            } catch {
+                $false
+            }
+        })
 }
-$incidentId = $incidents[0].id
+if (-not $recentIncidents -or $recentIncidents.Count -eq 0) {
+    throw "No incident was created during outage simulation for this run."
+}
+$incidentId = ($recentIncidents | Sort-Object createdAt -Descending | Select-Object -First 1).id
 Write-Host "Incident detected: $incidentId"
 
 Write-Host "Validating AI analysis generation..."

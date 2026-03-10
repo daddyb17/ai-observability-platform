@@ -26,7 +26,7 @@ public class JwtService {
             @Value("${app.security.access-token-ttl-seconds}") long accessTokenTtlSeconds,
             @Value("${app.security.refresh-token-ttl-seconds}") long refreshTokenTtlSeconds
     ) {
-        this.secretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretBase64));
+        this.secretKey = loadSecretKey(secretBase64);
         this.accessTokenTtlSeconds = accessTokenTtlSeconds;
         this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
     }
@@ -79,5 +79,20 @@ public class JwtService {
                 .expiration(Date.from(expiration))
                 .signWith(secretKey)
                 .compact();
+    }
+
+    private SecretKey loadSecretKey(String secretBase64) {
+        if (secretBase64 == null || secretBase64.isBlank()) {
+            throw new IllegalStateException("Missing JWT secret. Set JWT_SECRET_BASE64.");
+        }
+        try {
+            byte[] keyBytes = Decoders.BASE64.decode(secretBase64);
+            if (keyBytes.length < 32) {
+                throw new IllegalStateException("JWT secret must decode to at least 32 bytes.");
+            }
+            return Keys.hmacShaKeyFor(keyBytes);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException("JWT_SECRET_BASE64 must be valid Base64.", ex);
+        }
     }
 }

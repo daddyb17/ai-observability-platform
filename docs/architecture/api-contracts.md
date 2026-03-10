@@ -2,6 +2,10 @@
 
 Core MVP contracts exposed through `api-gateway`.
 
+Internal endpoint note:
+
+- All `/internal/**` routes now require header `X-Internal-Auth-Token: <INTERNAL_API_TOKEN>`.
+
 ## Auth
 
 - `POST /api/auth/login`

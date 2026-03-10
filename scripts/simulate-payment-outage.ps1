@@ -5,8 +5,9 @@ $orderUrl = if ($env:ORDER_URL) { $env:ORDER_URL } else { "http://localhost:8091
 $incidentUrl = if ($env:INCIDENT_URL) { $env:INCIDENT_URL } else { "http://localhost:8084" }
 $aiUrl = if ($env:AI_URL) { $env:AI_URL } else { "http://localhost:8085" }
 $notificationUrl = if ($env:NOTIFICATION_URL) { $env:NOTIFICATION_URL } else { "http://localhost:8086" }
-$loadCount = if ($env:LOAD_COUNT) { [int]$env:LOAD_COUNT } else { 40 }
-$waitSeconds = if ($env:WAIT_SECONDS) { [int]$env:WAIT_SECONDS } else { 35 }
+$loadCount = if ($env:LOAD_COUNT) { [int]$env:LOAD_COUNT } else { 120 }
+$waitSeconds = if ($env:WAIT_SECONDS) { [int]$env:WAIT_SECONDS } else { 60 }
+$scenarioStart = if ($env:SCENARIO_START_UTC) { [DateTimeOffset]::Parse($env:SCENARIO_START_UTC).ToUniversalTime() } else { [DateTimeOffset]::UtcNow }
 
 function Require-Endpoint {
     param(
@@ -35,12 +36,22 @@ Write-Host "Waiting $waitSeconds seconds for incident correlation..."
 Start-Sleep -Seconds $waitSeconds
 
 $incidents = Invoke-RestMethod -Method Get -Uri "$incidentUrl/api/incidents"
-if (-not $incidents -or $incidents.Count -eq 0) {
-    Write-Host "No incident detected yet."
+$recentIncidents = @()
+if ($incidents) {
+    $recentIncidents = @($incidents | Where-Object {
+            try {
+                $_.createdAt -and ([DateTimeOffset]::Parse($_.createdAt).ToUniversalTime() -ge $scenarioStart)
+            } catch {
+                $false
+            }
+        })
+}
+if (-not $recentIncidents -or $recentIncidents.Count -eq 0) {
+    Write-Host "No incident detected yet for this scenario run."
     exit 0
 }
 
-$incidentId = $incidents[0].id
+$incidentId = ($recentIncidents | Sort-Object createdAt -Descending | Select-Object -First 1).id
 Write-Host "Latest incident: $incidentId"
 Write-Host "Triggering analysis for incident..."
 try {

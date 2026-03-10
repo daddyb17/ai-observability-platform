@@ -7,10 +7,11 @@ PAYMENT_URL=${PAYMENT_URL:-http://localhost:8092}
 INCIDENT_URL=${INCIDENT_URL:-http://localhost:8084}
 AI_URL=${AI_URL:-http://localhost:8085}
 NOTIFICATION_URL=${NOTIFICATION_URL:-http://localhost:8086}
-WAIT_SECONDS=${WAIT_SECONDS:-40}
-LOAD_COUNT=${LOAD_COUNT:-50}
-ANALYSIS_WAIT_SECONDS=${ANALYSIS_WAIT_SECONDS:-60}
-ALERT_WAIT_SECONDS=${ALERT_WAIT_SECONDS:-45}
+WAIT_SECONDS=${WAIT_SECONDS:-80}
+LOAD_COUNT=${LOAD_COUNT:-200}
+ANALYSIS_WAIT_SECONDS=${ANALYSIS_WAIT_SECONDS:-120}
+ALERT_WAIT_SECONDS=${ALERT_WAIT_SECONDS:-90}
+SCENARIO_START_EPOCH="$(date -u +%s)"
 
 require_endpoint() {
   local name="$1"
@@ -32,8 +33,40 @@ require_endpoint() {
 }
 
 extract_incident_id() {
-  local json="$1"
-  echo "$json" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -n 1
+  local incidents_json="$1"
+  SCENARIO_START_EPOCH="$SCENARIO_START_EPOCH" INCIDENTS_JSON="$incidents_json" python - <<'PY'
+import datetime
+import json
+import os
+import sys
+
+start_epoch = int(os.environ.get("SCENARIO_START_EPOCH", "0"))
+raw = os.environ.get("INCIDENTS_JSON", "[]")
+try:
+    incidents = json.loads(raw)
+except json.JSONDecodeError:
+    print("")
+    sys.exit(0)
+if not isinstance(incidents, list):
+    incidents = [incidents]
+
+def created_epoch(value):
+    if not value:
+        return None
+    try:
+        return int(datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
+    except ValueError:
+        return None
+
+recent = []
+for incident in incidents:
+    epoch = created_epoch(incident.get("createdAt"))
+    if epoch is not None and epoch >= start_epoch:
+        recent.append(incident)
+
+recent.sort(key=lambda item: item.get("createdAt", ""), reverse=True)
+print(recent[0].get("id", "") if recent else "")
+PY
 }
 
 require_endpoint "payment-service health" "$PAYMENT_URL/actuator/health"
@@ -42,12 +75,12 @@ require_endpoint "ai-analysis-service health" "$AI_URL/actuator/health"
 require_endpoint "notification-service health" "$NOTIFICATION_URL/actuator/health"
 
 echo "Running outage simulation..."
-LOAD_COUNT="$LOAD_COUNT" WAIT_SECONDS="$WAIT_SECONDS" "$SCRIPT_DIR/simulate-payment-outage.sh"
+LOAD_COUNT="$LOAD_COUNT" WAIT_SECONDS="$WAIT_SECONDS" SCENARIO_START_EPOCH="$SCENARIO_START_EPOCH" "$SCRIPT_DIR/simulate-payment-outage.sh"
 
 INCIDENTS_JSON="$(curl -fsS "$INCIDENT_URL/api/incidents" | tr -d '\n')"
 INCIDENT_ID="$(extract_incident_id "$INCIDENTS_JSON")"
 if [[ -z "$INCIDENT_ID" ]]; then
-  echo "No incident was created during outage simulation." >&2
+  echo "No incident was created during outage simulation for this run." >&2
   exit 1
 fi
 

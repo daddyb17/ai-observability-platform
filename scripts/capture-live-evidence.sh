@@ -11,6 +11,7 @@ AI_URL=${AI_URL:-http://localhost:8085}
 NOTIFICATION_URL=${NOTIFICATION_URL:-http://localhost:8086}
 GRAFANA_URL=${GRAFANA_URL:-http://localhost:3000/d/platform-overview/platform-overview}
 JAEGER_URL=${JAEGER_URL:-http://localhost:16686/search}
+SCENARIO_START_EPOCH=${SCENARIO_START_EPOCH:-0}
 
 mkdir -p "$LIVE_DIR"
 
@@ -45,9 +46,45 @@ pretty_json_to_html() {
 echo "Fetching latest incident id..."
 incidents_json="$(curl -fsS "$INCIDENT_URL/api/incidents")"
 echo "$incidents_json" > "${LIVE_DIR}/incidents-latest.json"
-incident_id="$(echo "$incidents_json" | sed -n 's/.*"id":"\([^"]*\)".*/\1/p' | head -n 1)"
+incident_id="${INCIDENT_ID:-}"
 if [[ -z "$incident_id" ]]; then
-  echo "No incidents available. Run outage simulation first." >&2
+  incident_id="$(SCENARIO_START_EPOCH="$SCENARIO_START_EPOCH" INCIDENTS_JSON="$incidents_json" python - <<'PY'
+import datetime
+import json
+import os
+import sys
+
+start_epoch = int(os.environ.get("SCENARIO_START_EPOCH", "0"))
+raw = os.environ.get("INCIDENTS_JSON", "[]")
+try:
+    incidents = json.loads(raw)
+except json.JSONDecodeError:
+    print("")
+    sys.exit(0)
+if not isinstance(incidents, list):
+    incidents = [incidents]
+
+def created_epoch(value):
+    if not value:
+        return None
+    try:
+        return int(datetime.datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp())
+    except ValueError:
+        return None
+
+filtered = []
+for incident in incidents:
+    epoch = created_epoch(incident.get("createdAt"))
+    if epoch is not None and epoch >= start_epoch:
+        filtered.append(incident)
+
+filtered.sort(key=lambda item: item.get("createdAt", ""), reverse=True)
+print(filtered[0].get("id", "") if filtered else "")
+PY
+)"
+fi
+if [[ -z "$incident_id" ]]; then
+  echo "No incidents available for the requested run. Set INCIDENT_ID or run outage simulation first." >&2
   exit 1
 fi
 

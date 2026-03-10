@@ -15,7 +15,6 @@ management:
 
 app:
   security:
-    # Base64 for a 32-byte key: "01234567890123456789012345678901"
-    jwt-secret-base64: MDEyMzQ1Njc4OTAxMjM0NTY3ODkwMTIzNDU2Nzg5MDE=
+    jwt-secret-base64: ${JWT_SECRET_BASE64:}
     access-token-ttl-seconds: 900
     refresh-token-ttl-seconds: 259200

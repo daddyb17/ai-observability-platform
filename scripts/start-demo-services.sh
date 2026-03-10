@@ -29,6 +29,27 @@ POSTGRES_PORT_RESOLVED="$(detect_postgres_port)"
 export POSTGRES_URL="${POSTGRES_URL:-jdbc:postgresql://localhost:${POSTGRES_PORT_RESOLVED}/aiobs}"
 echo "Using POSTGRES_URL=${POSTGRES_URL}"
 
+if [[ -z "${JWT_SECRET_BASE64:-}" ]]; then
+  JWT_SECRET_BASE64="$(python - <<'PY'
+import base64
+import secrets
+print(base64.b64encode(secrets.token_bytes(32)).decode())
+PY
+)"
+  export JWT_SECRET_BASE64
+  echo "Generated ephemeral JWT_SECRET_BASE64 for this local run."
+fi
+
+if [[ -z "${INTERNAL_API_TOKEN:-}" ]]; then
+  INTERNAL_API_TOKEN="$(python - <<'PY'
+import secrets
+print(secrets.token_urlsafe(32))
+PY
+)"
+  export INTERNAL_API_TOKEN
+  echo "Generated INTERNAL_API_TOKEN for /internal endpoints."
+fi
+
 SERVICES=(
   "services/auth-service:8081:auth-service"
   "services/log-ingestion-service:8082:log-ingestion-service"

@@ -52,9 +52,12 @@ Detailed architecture docs:
    - Bash: `./scripts/start-local.sh`
    - PowerShell: `powershell -ExecutionPolicy Bypass -File .\\scripts\\start-local.ps1`
    - Optional Postgres host port override: set `POSTGRES_PORT` (example: `POSTGRES_PORT=55432`)
-2. Build all modules:
+2. Configure local environment:
+   - Copy `.env.example` values into your shell/session as needed.
+   - `start-demo-services` scripts auto-generate ephemeral `JWT_SECRET_BASE64` and `INTERNAL_API_TOKEN` when unset.
+3. Build all modules:
    - `./mvnw clean verify` (Windows: `mvnw.cmd clean verify`)
-3. Start services as needed:
+4. Start services as needed:
    - PowerShell: `powershell -ExecutionPolicy Bypass -File .\\scripts\\start-demo-services.ps1`
    - Bash: `./scripts/start-demo-services.sh`
 
@@ -108,6 +111,7 @@ Detailed architecture docs:
 
 - GitHub Actions workflow: `.github/workflows/ci.yml`
 - Runs on pushes/PRs, using Java 21 and Maven cache:
+  - `./mvnw -B -ntp verify -DskipTests`
   - `./mvnw -B -ntp test`
   - `./mvnw -B -ntp package -DskipTests`
 

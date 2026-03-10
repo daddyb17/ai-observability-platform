@@ -35,3 +35,6 @@ build/
 # Local runtime artifacts
 logs/demo-services/
 scripts/.demo-services.pids
+logs/*.log
+run-logs/
+.env

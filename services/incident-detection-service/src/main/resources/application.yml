@@ -28,6 +28,8 @@ management:
         include: health,info,prometheus
 
 app:
+  internal:
+    auth-token: ${INTERNAL_API_TOKEN:}
   incident:
     rules:
       correlation-window-minutes: 10

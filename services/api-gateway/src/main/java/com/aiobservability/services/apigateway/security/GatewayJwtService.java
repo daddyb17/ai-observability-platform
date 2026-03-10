@@ -16,7 +16,7 @@ public class GatewayJwtService {
     private final SecretKey secretKey;
 
     public GatewayJwtService(@Value("${app.gateway.security.jwt-secret-base64}") String secretBase64) {
-        this.secretKey = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretBase64));
+        this.secretKey = loadSecretKey(secretBase64);
     }
 
     public Claims parseAndValidateAccessToken(String token) {
@@ -34,5 +34,20 @@ public class GatewayJwtService {
             throw new IllegalArgumentException("Not an access token");
         }
         return claims;
+    }
+
+    private SecretKey loadSecretKey(String secretBase64) {
+        if (secretBase64 == null || secretBase64.isBlank()) {
+            throw new IllegalStateException("Missing JWT secret. Set JWT_SECRET_BASE64.");
+        }
+        try {
+            byte[] keyBytes = Decoders.BASE64.decode(secretBase64);
+            if (keyBytes.length < 32) {
+                throw new IllegalStateException("JWT secret must decode to at least 32 bytes.");
+            }
+            return Keys.hmacShaKeyFor(keyBytes);
+        } catch (IllegalArgumentException ex) {
+            throw new IllegalStateException("JWT_SECRET_BASE64 must be valid Base64.", ex);
+        }
     }
 }

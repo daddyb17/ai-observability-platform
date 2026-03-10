@@ -68,13 +68,13 @@ Note: current implementation keeps Ollama as a planned provider; switch for wiri
 ## 4) Verify Active Provider
 
 ```bash
-curl http://localhost:8085/internal/ai/providers
+curl -H "X-Internal-Auth-Token: $INTERNAL_API_TOKEN" http://localhost:8085/internal/ai/providers
 ```
 
 PowerShell:
 
 ```powershell
-Invoke-WebRequest -UseBasicParsing -Uri "http://localhost:8085/internal/ai/providers" | Select-Object -ExpandProperty Content
+Invoke-WebRequest -UseBasicParsing -Headers @{ "X-Internal-Auth-Token" = $env:INTERNAL_API_TOKEN } -Uri "http://localhost:8085/internal/ai/providers" | Select-Object -ExpandProperty Content
 ```
 
 Confirm one provider has `"selected": true`.
