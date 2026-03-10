@@ -37,7 +37,9 @@ public class LogIndexService {
 
     public LogIndexService(LogIngestionProperties properties, ObjectMapper objectMapper) {
         this.properties = properties;
-        this.objectMapper = objectMapper;
+        // Ensure Java time types (Instant, OffsetDateTime, etc.) always serialize correctly,
+        // even when the mapper comes from non-Spring contexts (e.g. integration tests).
+        this.objectMapper = objectMapper.copy().findAndRegisterModules();
         this.httpClient = HttpClient.newBuilder()
                 .connectTimeout(Duration.ofSeconds(5))
                 .build();
